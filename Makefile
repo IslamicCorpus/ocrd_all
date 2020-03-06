@@ -455,9 +455,9 @@ DOCKER_TAG ?= ocrd/all
 #  so build-time and bandwidth are n-fold)
 .PHONY: dockers
 ifdef DOCKERS_WITHOUT_REPOS
-dockers: docker-minimum docker-medium docker-maximum
+dockers: docker-minimum docker-medium docker-maximum docker-gpu_minimum docker-gpu_medium docker-gpu_maximum
 else
-dockers: docker-minimum-git docker-medium-git docker-maximum-git
+dockers: docker-minimum-git docker-medium-git docker-maximum-git docker-gpu_minimum-git docker-gpu_medium-git docker-gpu_maximum-git
 endif
 
 # Selections which keep git repos and reference them for install
@@ -465,11 +465,22 @@ endif
 docker-minimum-git docker-medium-git docker-maximum-git: PIP_OPTIONS = -e
 
 # Minimum-size selection: use Ocropy binarization, use Tesseract from PPA
-docker-minimum docker-minimum-git: DOCKER_MODULES = core ocrd_im6convert ocrd_cis ocrd_tesserocr tesserocr workflow-configuration ocrd_repair_inconsistencies
+docker-minimum docker-minimum-git docker-gpu_minimum docker-gpu_minimum-git: DOCKER_MODULES = core ocrd_im6convert ocrd_cis ocrd_tesserocr tesserocr workflow-configuration ocrd_repair_inconsistencies
 # Medium-size selection: add Olena binarization and Calamari, use Tesseract from git, add evaluation
-docker-medium docker-medium-git: DOCKER_MODULES = core ocrd_im6convert format-converters ocrd_cis ocrd_tesserocr tesserocr tesseract ocrd_olena ocrd_segment ocrd_keraslm ocrd_calamari dinglehopper cor-asv-ann workflow-configuration ocrd_repair_inconsistencies
+docker-medium docker-medium-git docker-gpu_medium docker-gpu_medium-git: DOCKER_MODULES = core ocrd_im6convert format-converters ocrd_cis ocrd_tesserocr tesserocr tesseract ocrd_olena ocrd_segment ocrd_keraslm ocrd_calamari dinglehopper cor-asv-ann workflow-configuration ocrd_repair_inconsistencies
 # Maximum-size selection: use all modules
-docker-maximum docker-maximum-git: DOCKER_MODULES = $(OCRD_MODULES)
+docker-maximum docker-maximum-git docker-gpu_maximum docker-gpu_maximum-git: DOCKER_MODULES = $(OCRD_MODULES)
+
+docker-gpu%: Dockerfile $(DOCKER_MODULES)
+	docker build \
+	--build-arg VCS_REF=$$(git rev-parse --short HEAD) \
+	--build-arg BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+	--build-arg OCRD_MODULES="$(DOCKER_MODULES)" \
+	--build-arg PIP_OPTIONS="$(PIP_OPTIONS)" \
+	-t $(DOCKER_TAG):$(*:-%=%) \
+	-f Dockerfile-gpu \
+	.
+	rm Dockerfile-gpu
 
 # Build rule for all selections
 # (maybe we should add --network=host here for smoother build-time?)
@@ -479,7 +490,8 @@ docker%: Dockerfile $(DOCKER_MODULES)
 	--build-arg BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
 	--build-arg OCRD_MODULES="$(DOCKER_MODULES)" \
 	--build-arg PIP_OPTIONS="$(PIP_OPTIONS)" \
-	-t $(DOCKER_TAG):$(or $(*:-%=%),latest) .
+	-t $(DOCKER_TAG):$(*:-%=%) \
+	.
 
 
 # do not search for implicit rules here:
